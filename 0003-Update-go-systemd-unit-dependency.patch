@@ -1,0 +1,509 @@
+From 90f8114f812e25a30b7680bbd41b4e9fad9dfb1b Mon Sep 17 00:00:00 2001
+From: Dimitri John Ledkov <dimitri.j.ledkov@intel.com>
+Date: Mon, 11 May 2015 15:58:40 +0100
+Subject: [PATCH 3/7] Update go-systemd/unit dependency.
+Organization: Intel Corporation (UK) Ltd. - Co. Reg. #1134945 - Pipers Way, Swindon SN3 1RJ
+
+---
+ Godeps/Godeps.json                                 |   4 +-
+ .../coreos/go-systemd/unit/deserialize.go          |  14 ++
+ .../coreos/go-systemd/unit/deserialize_test.go     |  14 ++
+ .../github.com/coreos/go-systemd/unit/escape.go    | 116 +++++++++++
+ .../coreos/go-systemd/unit/escape_test.go          | 211 +++++++++++++++++++++
+ .../github.com/coreos/go-systemd/unit/option.go    |  14 ++
+ .../coreos/go-systemd/unit/option_test.go          |  14 ++
+ .../github.com/coreos/go-systemd/unit/serialize.go |  14 ++
+ .../coreos/go-systemd/unit/serialize_test.go       |  14 ++
+ 9 files changed, 413 insertions(+), 2 deletions(-)
+ create mode 100644 Godeps/_workspace/src/github.com/coreos/go-systemd/unit/escape.go
+ create mode 100644 Godeps/_workspace/src/github.com/coreos/go-systemd/unit/escape_test.go
+
+diff --git a/Godeps/Godeps.json b/Godeps/Godeps.json
+index 6cfd362..ab3354c 100644
+--- a/Godeps/Godeps.json
++++ b/Godeps/Godeps.json
+@@ -103,8 +103,8 @@
+ 		},
+ 		{
+ 			"ImportPath": "github.com/coreos/go-systemd/unit",
+-			"Comment": "v2-41-g415a79c4bfa3",
+-			"Rev": "415a79c4bfa377b484b16c632347b3925a0f35ff"
++			"Comment": "v2-53-g2688e91",
++			"Rev": "2688e91251d9d8e404e86dd8f096e23b2f086958"
+ 		},
+ 		{
+ 			"ImportPath": "github.com/coreos/ioprogress",
+diff --git a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/deserialize.go b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/deserialize.go
+index 2b1522e..4ee8d6a 100644
+--- a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/deserialize.go
++++ b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/deserialize.go
+@@ -1,3 +1,17 @@
++// Copyright 2015 CoreOS, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
+ package unit
+ 
+ import (
+diff --git a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/deserialize_test.go b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/deserialize_test.go
+index bb98b82..c2b59d2 100644
+--- a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/deserialize_test.go
++++ b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/deserialize_test.go
+@@ -1,3 +1,17 @@
++// Copyright 2015 CoreOS, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
+ package unit
+ 
+ import (
+diff --git a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/escape.go b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/escape.go
+new file mode 100644
+index 0000000..63b1172
+--- /dev/null
++++ b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/escape.go
+@@ -0,0 +1,116 @@
++// Copyright 2015 CoreOS, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++// Implements systemd-escape [--unescape] [--path]
++
++package unit
++
++import (
++	"fmt"
++	"strconv"
++	"strings"
++)
++
++const (
++	allowed = `:_.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
++)
++
++// If isPath is true:
++//   We remove redundant '/'s, the leading '/', and trailing '/'.
++//   If the result is empty, a '/' is inserted.
++//
++// We always:
++//  Replace the following characters with `\x%x`:
++//   Leading `.`
++//   `-`, `\`, and anything not in this set: `:-_.\[0-9a-zA-Z]`
++//  Replace '/' with '-'.
++func escape(unescaped string, isPath bool) string {
++	e := []byte{}
++	inSlashes := false
++	start := true
++	for i := 0; i < len(unescaped); i++ {
++		c := unescaped[i]
++		if isPath {
++			if c == '/' {
++				inSlashes = true
++				continue
++			} else if inSlashes {
++				inSlashes = false
++				if !start {
++					e = append(e, '-')
++				}
++			}
++		}
++
++		if c == '/' {
++			e = append(e, '-')
++		} else if start && c == '.' || strings.IndexByte(allowed, c) == -1 {
++			e = append(e, []byte(fmt.Sprintf(`\x%x`, c))...)
++		} else {
++			e = append(e, c)
++		}
++		start = false
++	}
++	if isPath && len(e) == 0 {
++		e = append(e, '-')
++	}
++	return string(e)
++}
++
++// If isPath is true:
++//   We always return a string beginning with '/'.
++//
++// We always:
++//  Replace '-' with '/'.
++//  Replace `\x%x` with the value represented in hex.
++func unescape(escaped string, isPath bool) string {
++	u := []byte{}
++	for i := 0; i < len(escaped); i++ {
++		c := escaped[i]
++		if c == '-' {
++			c = '/'
++		} else if c == '\\' && len(escaped)-i >= 4 && escaped[i+1] == 'x' {
++			n, err := strconv.ParseInt(escaped[i+2:i+4], 16, 8)
++			if err == nil {
++				c = byte(n)
++				i += 3
++			}
++		}
++		u = append(u, c)
++	}
++	if isPath && (len(u) == 0 || u[0] != '/') {
++		u = append([]byte("/"), u...)
++	}
++	return string(u)
++}
++
++// UnitNameEscape escapes a string as `systemd-escape` would
++func UnitNameEscape(unescaped string) string {
++	return escape(unescaped, false)
++}
++
++// UnitNameUnescape unescapes a string as `systemd-escape --unescape` would
++func UnitNameUnescape(escaped string) string {
++	return unescape(escaped, false)
++}
++
++// UnitNamePathEscape escapes a string as `systemd-escape --path` would
++func UnitNamePathEscape(unescaped string) string {
++	return escape(unescaped, true)
++}
++
++// UnitNamePathUnescape unescapes a string as `systemd-escape --path --unescape` would
++func UnitNamePathUnescape(escaped string) string {
++	return unescape(escaped, true)
++}
+diff --git a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/escape_test.go b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/escape_test.go
+new file mode 100644
+index 0000000..36b1a7d
+--- /dev/null
++++ b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/escape_test.go
+@@ -0,0 +1,211 @@
++// Copyright 2015 CoreOS, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package unit
++
++import (
++	"testing"
++)
++
++func TestUnitNameEscape(t *testing.T) {
++	tests := []struct {
++		in     string
++		out    string
++		isPath bool
++	}{
++		// turn empty string path into escaped /
++		{
++			in:     "",
++			out:    "-",
++			isPath: true,
++		},
++		// turn redundant ////s into single escaped /
++		{
++			in:     "/////////",
++			out:    "-",
++			isPath: true,
++		},
++		// remove all redundant ////s
++		{
++			in:     "///foo////bar/////tail//////",
++			out:    "foo-bar-tail",
++			isPath: true,
++		},
++		// leave empty string empty
++		{
++			in:     "",
++			out:    "",
++			isPath: false,
++		},
++		// escape leading dot
++		{
++			in:     ".",
++			out:    `\x2e`,
++			isPath: true,
++		},
++		// escape leading dot
++		{
++			in:     "/.",
++			out:    `\x2e`,
++			isPath: true,
++		},
++		// escape leading dot
++		{
++			in:     "/////////.",
++			out:    `\x2e`,
++			isPath: true,
++		},
++		// escape leading dot
++		{
++			in:     "/////////.///////////////",
++			out:    `\x2e`,
++			isPath: true,
++		},
++		// escape leading dot
++		{
++			in:     ".....",
++			out:    `\x2e....`,
++			isPath: true,
++		},
++		// escape leading dot
++		{
++			in:     "/.foo/.bar",
++			out:    `\x2efoo-.bar`,
++			isPath: true,
++		},
++		// escape leading dot
++		{
++			in:     ".foo/.bar",
++			out:    `\x2efoo-.bar`,
++			isPath: true,
++		},
++		// escape leading dot
++		{
++			in:     ".foo/.bar",
++			out:    `\x2efoo-.bar`,
++			isPath: false,
++		},
++		// escape disallowed
++		{
++			in:     `///..\-!#??///`,
++			out:    `---..\x5c\x2d\x21\x23\x3f\x3f---`,
++			isPath: false,
++		},
++		// escape disallowed
++		{
++			in:     `///..\-!#??///`,
++			out:    `\x2e.\x5c\x2d\x21\x23\x3f\x3f`,
++			isPath: true,
++		},
++		// escape real-world example
++		{
++			in:     `user-cloudinit@/var/lib/coreos/vagrant/vagrantfile-user-data.service`,
++			out:    `user\x2dcloudinit\x40-var-lib-coreos-vagrant-vagrantfile\x2duser\x2ddata.service`,
++			isPath: false,
++		},
++	}
++
++	for i, tt := range tests {
++		var s string
++		if tt.isPath {
++			s = UnitNamePathEscape(tt.in)
++		} else {
++			s = UnitNameEscape(tt.in)
++		}
++		if s != tt.out {
++			t.Errorf("case %d: failed escaping %v isPath: %v - expected %v, got %v", i, tt.in, tt.isPath, tt.out, s)
++		}
++	}
++}
++
++func TestUnitNameUnescape(t *testing.T) {
++	tests := []struct {
++		in     string
++		out    string
++		isPath bool
++	}{
++		// turn empty string path into /
++		{
++			in:     "",
++			out:    "/",
++			isPath: true,
++		},
++		// leave empty string empty
++		{
++			in:     "",
++			out:    "",
++			isPath: false,
++		},
++		// turn ////s into
++		{
++			in:     "---------",
++			out:    "/////////",
++			isPath: true,
++		},
++		// unescape hex
++		{
++			in:     `---..\x5c\x2d\x21\x23\x3f\x3f---`,
++			out:    `///..\-!#??///`,
++			isPath: false,
++		},
++		// unescape hex
++		{
++			in:     `\x2e.\x5c\x2d\x21\x23\x3f\x3f`,
++			out:    `/..\-!#??`,
++			isPath: true,
++		},
++		// unescape hex, retain invalids
++		{
++			in:     `\x2e.\x5c\x2d\xaZ\x.o\x21\x23\x3f\x3f`,
++			out:    `/..\-\xaZ\x.o!#??`,
++			isPath: true,
++		},
++		// unescape hex, retain invalids, partial tail
++		{
++			in:     `\x2e.\x5c\x\x2d\xaZ\x.o\x21\x23\x3f\x3f\x3`,
++			out:    `/..\\x-\xaZ\x.o!#??\x3`,
++			isPath: true,
++		},
++		// unescape hex, retain invalids, partial tail
++		{
++			in:     `\x2e.\x5c\x\x2d\xaZ\x.o\x21\x23\x3f\x3f\x`,
++			out:    `/..\\x-\xaZ\x.o!#??\x`,
++			isPath: true,
++		},
++		// unescape hex, retain invalids, partial tail
++		{
++			in:     `\x2e.\x5c\x\x2d\xaZ\x.o\x21\x23\x3f\x3f\`,
++			out:    `/..\\x-\xaZ\x.o!#??\`,
++			isPath: true,
++		},
++		// unescape real-world example
++		{
++			in:     `user\x2dcloudinit\x40-var-lib-coreos-vagrant-vagrantfile\x2duser\x2ddata.service`,
++			out:    `user-cloudinit@/var/lib/coreos/vagrant/vagrantfile-user-data.service`,
++			isPath: false,
++		},
++	}
++
++	for i, tt := range tests {
++		var s string
++		if tt.isPath {
++			s = UnitNamePathUnescape(tt.in)
++		} else {
++			s = UnitNameUnescape(tt.in)
++		}
++		if s != tt.out {
++			t.Errorf("case %d: failed unescaping %v isPath: %v - expected %v, got %v", i, tt.in, tt.isPath, tt.out, s)
++		}
++	}
++}
+diff --git a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/option.go b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/option.go
+index 2b70fca..9329b34 100644
+--- a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/option.go
++++ b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/option.go
+@@ -1,3 +1,17 @@
++// Copyright 2015 CoreOS, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
+ package unit
+ 
+ import (
+diff --git a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/option_test.go b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/option_test.go
+index ebdc062..0765f03 100644
+--- a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/option_test.go
++++ b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/option_test.go
+@@ -1,3 +1,17 @@
++// Copyright 2015 CoreOS, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
+ package unit
+ 
+ import (
+diff --git a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/serialize.go b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/serialize.go
+index 0a327fe..edddecb 100644
+--- a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/serialize.go
++++ b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/serialize.go
+@@ -1,3 +1,17 @@
++// Copyright 2015 CoreOS, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
+ package unit
+ 
+ import (
+diff --git a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/serialize_test.go b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/serialize_test.go
+index e5ec0f1..16f1645 100644
+--- a/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/serialize_test.go
++++ b/Godeps/_workspace/src/github.com/coreos/go-systemd/unit/serialize_test.go
+@@ -1,3 +1,17 @@
++// Copyright 2015 CoreOS, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
+ package unit
+ 
+ import (
+-- 
+2.1.4
+

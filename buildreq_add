@@ -1,0 +1,20 @@
+# This file contains additional build requirements that did not get
+# picked up automatically. One name per line, no whitespace.
+go
+gnupg
+systemd-dev
+intltool
+intltool-dev
+automake
+libtool-dev
+m4
+libgcrypt-dev
+libcap-dev
+libxslt-bin
+gperf
+perl(XML::Parser)
+glibc-staticdev
+/usr/bin/ldd
+linux-container-lkvm
+linux-container
+util-linux-bin

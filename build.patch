@@ -1,0 +1,27 @@
+Index: rkt-0.5.4/Makefile
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ rkt-0.5.4/Makefile	2015-04-28 13:04:51.266921012 +0100
+@@ -0,0 +1,22 @@
++all:
++	RKT_STAGE1_USR_FROM=src ./build
++
++build:
++	./build
++
++install:
++	mkdir -p $(DESTDIR)/usr/bin
++	mkdir -p $(DESTDIR)/usr/share/rkt
++	mkdir -p $(DESTDIR)/usr/lib/systemd/system
++	cp bin/rkt $(DESTDIR)/usr/bin/rkt
++	cp bin/actool $(DESTDIR)/usr/bin/actool
++	cp bin/stage1.aci $(DESTDIR)/usr/bin/stage1.aci
++
++	cp bin/bridge bin/gc bin/init bin/macvlan bin/host-local bin/veth $(DESTDIR)/usr/share/rkt
++
++	# install metadata unitfiles
++	cp dist/init/systemd/rkt-metadata.service $(DESTDIR)/usr/lib/systemd/system/rkt-metadata.service
++	cp dist/init/systemd/rkt-metadata.socket $(DESTDIR)/usr/lib/systemd/system/rkt-metadata.socket
++
++check:
++	./test

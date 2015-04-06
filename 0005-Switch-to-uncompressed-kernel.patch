@@ -1,0 +1,26 @@
+From a072a99d16c96516478e3c88b27983da4fec8c8c Mon Sep 17 00:00:00 2001
+From: Dimitri John Ledkov <dimitri.j.ledkov@intel.com>
+Date: Tue, 12 May 2015 18:25:04 +0100
+Subject: [PATCH 5/7] Switch to uncompressed kernel.
+Organization: Intel Corporation (UK) Ltd. - Co. Reg. #1134945 - Pipers Way, Swindon SN3 1RJ
+
+---
+ stage1/init/init.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/stage1/init/init.go b/stage1/init/init.go
+index 67ae894..df353a5 100644
+--- a/stage1/init/init.go
++++ b/stage1/init/init.go
+@@ -59,7 +59,7 @@ const (
+ 	nspawnBin = "/usr/bin/systemd-nspawn"
+ 	// Path to lkvm binary within the stage1 rootfs
+ 	lkvmBin = "/usr/bin/lkvm"
+-	bzImg = "/usr/lib/kernel/vmlinuz.container"
++	bzImg = "/usr/lib/kernel/vmlinux.container"
+ 	// Path to the interpreter within the stage1 rootfs
+ 	interpBin = "/usr/lib/ld-linux-x86-64.so.2"
+ 	// Path to the localtime file/symlink in host
+-- 
+2.1.4
+

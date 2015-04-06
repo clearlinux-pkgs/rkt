@@ -1,0 +1,28 @@
+From 2416af1d35224908501626cb9156b895384c41b5 Mon Sep 17 00:00:00 2001
+From: Dimitri John Ledkov <dimitri.j.ledkov@intel.com>
+Date: Thu, 14 May 2015 13:48:32 +0100
+Subject: [PATCH 7/7] Run lkvm in debug mode, when debugging is requested.
+Organization: Intel Corporation (UK) Ltd. - Co. Reg. #1134945 - Pipers Way, Swindon SN3 1RJ
+
+---
+ stage1/init/init.go | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/stage1/init/init.go b/stage1/init/init.go
+index 3f453ea..d98f51b 100644
+--- a/stage1/init/init.go
++++ b/stage1/init/init.go
+@@ -206,7 +206,9 @@ func getArgsEnvKvm(p *Pod) ([]string, []string, error) {
+ 
+ 	// Arguments to systemd
+ 	kargs = append(kargs, "systemd.default_standard_output=tty")
+-	if !debug {
++	if debug {
++		args = append(args, "--debug")
++	} else {
+ 		kargs = append(kargs, "systemd.log_target=null")
+ 		kargs = append(kargs, "systemd.show-status=0")
+ 		kargs = append(kargs, "quiet") // silence most nspawn output (log_warning is currently not covered by this)
+-- 
+2.1.4
+
