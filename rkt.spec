@@ -4,7 +4,7 @@
 #
 Name     : rkt
 Version  : 0.5.5
-Release  : 19
+Release  : 20
 URL      : https://github.com/coreos/rkt/archive/v0.5.5.tar.gz
 Source0  : https://github.com/coreos/rkt/archive/v0.5.5.tar.gz
 Summary  : No detailed summary available
@@ -26,7 +26,7 @@ BuildRequires : libgcrypt-dev
 BuildRequires : libtool-dev
 BuildRequires : libxslt-bin
 BuildRequires : linux-container
-BuildRequires : linux-container-lkvm
+BuildRequires : linux-container
 BuildRequires : m4
 BuildRequires : perl(XML::Parser)
 BuildRequires : pkgconfig(dbus-1)
