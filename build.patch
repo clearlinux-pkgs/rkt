@@ -15,7 +15,7 @@ Index: rkt-0.5.4/Makefile
 +	mkdir -p $(DESTDIR)/usr/lib/systemd/system
 +	cp bin/rkt $(DESTDIR)/usr/bin/rkt
 +	cp bin/actool $(DESTDIR)/usr/bin/actool
-+	cp bin/stage1.aci $(DESTDIR)/usr/bin/stage1.aci
++	install -m0755 bin/stage1.aci $(DESTDIR)/usr/bin/stage1.aci
 +
 +	cp bin/bridge bin/gc bin/init bin/macvlan bin/host-local bin/veth $(DESTDIR)/usr/share/rkt
 +
